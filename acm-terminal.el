@@ -129,9 +129,19 @@ substring lenght, e.g.:
       (set-face-foreground 'acm-select-face (face-attribute 'font-lock-function-name-face :foreground)))))
 
 (defun acm-terminal-get-popup-position ()
-  (cons (- (current-column) (- (point) acm-frame-popup-point))
-        (- (line-number-at-pos acm-frame-popup-point)
-           (line-number-at-pos (window-start)))))
+  "Return postion of menu."
+  ;; The existing overlay will cause `popon-x-y-at-pos' and `posn-x-y' to get
+  ;; the wrong position.
+  (if acm-frame
+      (let ((pos (popon-position acm-frame))
+            (direction (plist-get (cdr acm-frame) :direction))
+            (size (popon-size acm-frame)))
+        (cons (car pos)
+              (if (eq 'top direction)
+                  (+ (cdr pos) (cdr size))
+                (1- (cdr pos)))))
+    (let ((pos (popon-x-y-at-pos acm-frame-popup-point)))
+      (cons (car pos) (1+ (cdr pos))))))
 
 (defun acm-terminal-popon-visible-p (popon)
   (when (popon-live-p popon)
@@ -182,7 +192,7 @@ See `popon-create' for more information."
         ;; Build candidate line.
         (setq candidate-line
               (concat
-               icon-text
+               ;; icon-text
                (when acm-enable-quick-access
                  (if quick-access-key (concat quick-access-key ". ") "   "))
                (if (> padding-length 0)
@@ -217,7 +227,7 @@ See `popon-create' for more information."
 
 (defun acm-terminal-doc-render (doc &optional width)
   "Render DOC string."
-  (let ((width (or width acm-terminal-doc-max-width))
+  (let ((width (or width (1- acm-terminal-doc-max-width)))
         lines)
     (dolist (nline (split-string doc "\n") lines)
       (dolist (mline (acm-terminal-nsplit-string
@@ -245,11 +255,8 @@ See `popon-create' for more information."
                       (acm-menu-render-items items menu-index)
                       (buffer-string))
                     "\n")))
-        (plist-put (cdr acm-frame) :lines lines)
-        (plist-put (cdr acm-frame) :width (length (car lines))))
-
-      ;; Adjust menu frame position.
-      (acm-terminal-menu-adjust-pos)
+        ;; Adjust menu frame position.
+        (acm-terminal-menu-adjust-pos lines))
 
       (popon-redisplay)
       (plist-put (cdr acm-frame) :visible t))
@@ -267,15 +274,19 @@ See `popon-create' for more information."
     (cl-letf (((symbol-function 'acm-frame-visible-p) 'acm-terminal-popon-visible-p))
       (acm-fetch-candidate-doc))))
 
-(defun acm-terminal-menu-adjust-pos ()
+(defun acm-terminal-menu-adjust-pos (&optional lines)
   "Adjust menu frame position."
   (pcase-let* ((`(,edge-left ,edge-top ,edge-right ,edge-bottom) (window-inside-edges))
                (textarea-width (- (window-width)
                                   (+ (- edge-left (window-left-column))
                                      (acm-teminal-line-number-display-width))))
                (textarea-height (- edge-bottom edge-top))
+               (`(,init-x . ,init-y)
+                (prog1 (acm-terminal-get-popup-position)
+                  (when lines
+                    (plist-put (cdr acm-frame) :lines lines)
+                    (plist-put (cdr acm-frame) :width (length (car lines))))))
                (`(,menu-w . ,menu-h) (popon-size acm-frame))
-               (`(,init-x . ,init-y) (acm-terminal-get-popup-position))
                (bottom-free-h (- edge-bottom edge-top init-y)))
     (let ((x (if (>= textarea-width (+ init-x menu-w))
                  init-x
@@ -284,10 +295,12 @@ See `popon-create' for more information."
     (cond
      ;; top
      ((and (< bottom-free-h menu-h) (> init-y menu-h))
+      (plist-put (cdr acm-frame) :direction 'top)
       (plist-put (cdr acm-frame) :y (- init-y menu-h)))
      ;; bottom
      (t
-      (plist-put (cdr acm-frame) :y (1+ init-y))))))
+      (plist-put (cdr acm-frame) :direction 'bottom)
+      (plist-put (cdr acm-frame) :y (+ init-y 1))))))
 
 (defun acm-terminal-doc-adjust-pos (&optional candidate-doc)
   "Adjust doc frame position."
@@ -344,10 +357,13 @@ See `popon-create' for more information."
             ('top
              (plist-put (cdr acm-doc-frame) :x (if (>= (- textarea-width menu-x) doc-w)
                                                    menu-x
-                                                 (- textarea-width doc-w 1)))
+                                                 (- textarea-width doc-w)))
              (plist-put (cdr acm-doc-frame) :y (if (< menu-y init-y)
                                                    (- menu-y doc-h)
-                                                 (- menu-y doc-h))))
+                                                 (- menu-y doc-h
+                                                    (if (eq 'bottom (plist-get (cdr acm-frame) :direction))
+                                                        1
+                                                      0)))))
             ('bottom
              (plist-put (cdr acm-doc-frame) :x (if (>= (- textarea-width menu-x) doc-w)
                                                    menu-x
@@ -412,7 +428,9 @@ See `popon-create' for more information."
   (let* ((gc-cons-threshold most-positive-fixnum)
          (keyword (acm-get-input-prefix))
          (candidates (acm-update-candidates))
-         (bounds (bounds-of-thing-at-point 'symbol)))
+         (bounds (bounds-of-thing-at-point 'symbol))
+         (direction (when (popon-live-p acm-frame)
+                      (plist-get (cdr acm-frame) :direction))))
     (setq acm-terminal-current-input (acm-backend-search-words-get-point-string))
     (cond
      ;; Hide completion menu if user type first candidate completely.
@@ -451,6 +469,7 @@ See `popon-create' for more information."
 
           ;; Create menu frame if it not exists.
           (acm-terminal-create-frame-if-not-exist acm-frame acm-buffer "acm frame")
+          (plist-put (cdr acm-frame) :direction direction)
 
           ;; Render menu.
           (acm-menu-render menu-old-cache))
