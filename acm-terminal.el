@@ -33,11 +33,7 @@
 
 ;; ## Installation
 
-;; ```emacs-lisp
-;; (quelpa '(acm-terminal :repo "twlz0ne/acm-terminal"
-;;                        :fetcher github
-;;                        :files ("acm-terminal.el")))
-;; ```
+;; Clone or download this repository (path of the folder is the `<path-to-acm-terminal>` used below).
 
 ;; ## Configuration
 
@@ -49,6 +45,7 @@
 ;; (global-lsp-bridge-mode)
 
 ;; (unless (display-graphic-p)
+;;   (add-to-list 'load-path "<path-to-acm-terminal>")
 ;;   (with-eval-after-load 'acm
 ;;     (require 'acm-terminal)))
 ;; ```
