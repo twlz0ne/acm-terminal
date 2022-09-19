@@ -5,6 +5,8 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2022/07/07
 ;; Version: 0.1.0
+;; Last-Updated: 2022-09-19 19:43:33 +0800
+;;           By: Gong Qijian
 ;; Package-Requires: ((emacs "26.1") (acm "0.1") (popon "0.3"))
 ;; URL: https://github.com/twlz0ne/acm-terminal
 ;; Keywords: 
@@ -173,14 +175,16 @@ See `popon-create' for more information."
     (dolist (v items)
       (let* ((icon (cdr (assoc (downcase (plist-get v :icon)) acm-icon-alist)))
              (candidate (plist-get v :display-label))
+             (candidate-length (funcall acm-string-width-function candidate))
              (annotation (plist-get v :annotation))
              (annotation-text (if annotation annotation ""))
              (annotation-length (funcall acm-string-width-function annotation-text))
-             (padding-length
-              (let ((len (+ annotation-length (funcall acm-string-width-function candidate))))
-                (if (<= len acm-terminal-min-width)
-                    (- acm-terminal-min-width len)
-                  (- acm-terminal-max-width len))))
+             (max-length (cond ((< acm-menu-max-length-cache acm-terminal-min-width)
+                                acm-terminal-min-width)
+                               ((< acm-terminal-max-width acm-menu-max-length-cache)
+                                acm-terminal-max-width)
+                               (t acm-menu-max-length-cache)))
+             (padding-length (- max-length (+ candidate-length annotation-length)))
              (icon-text (if icon (acm-icon-build (nth 0 icon) (nth 1 icon) (nth 2 icon)) ""))
              (quick-access-key (nth item-index acm-quick-access-keys))
              candidate-line)
@@ -195,10 +199,11 @@ See `popon-create' for more information."
                ;; icon-text
                (when acm-enable-quick-access
                  (if quick-access-key (concat quick-access-key ". ") "   "))
-               (if (> padding-length 0)
-                   (concat
-                    candidate
-                    (make-string padding-length ?\s)))
+               (if (zerop padding-length)
+                   candidate
+                 (if (> padding-length 0)
+                     (concat candidate (make-string padding-length ?\s))
+                   (truncate-string-to-width candidate max-length 0 ?\s)))
                (propertize (format "%s \n" (capitalize annotation-text))
                            'face
                            (if (equal item-index menu-index) 'acm-select-face 'font-lock-doc-face))))
