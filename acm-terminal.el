@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2022/07/07
 ;; Version: 0.1.0
-;; Last-Updated: 2022-09-19 19:43:33 +0800
+;; Last-Updated: 2022-09-21 22:33:49 +0800
 ;;           By: Gong Qijian
 ;; Package-Requires: ((emacs "26.1") (acm "0.1") (popon "0.3"))
 ;; URL: https://github.com/twlz0ne/acm-terminal
@@ -168,10 +168,8 @@ See `popon-create' for more information."
      (setq ,frame (acm-terminal-make-frame nil))))
 
 (defun acm-terminal-menu-render-items (items menu-index)
-  (let ((item-index 0)
-        (menu-x (let ((pos (popon-x-y-at-pos acm-frame-popup-point)))
-                  ;; Convert to local
-                  (- (car pos) (window-left-column) (acm-teminal-line-number-display-width)))))
+  (let* ((item-index 0)
+         (annotation-not-exits (cl-every (lambda (item) (string-empty-p (plist-get item :annotation))) items)))
     (dolist (v items)
       (let* ((icon (cdr (assoc (downcase (plist-get v :icon)) acm-icon-alist)))
              (candidate (plist-get v :display-label))
@@ -299,13 +297,52 @@ See `popon-create' for more information."
       (plist-put (cdr acm-frame) :x x))
     (cond
      ;; top
-     ((and (< bottom-free-h menu-h) (> init-y menu-h))
+     ((< bottom-free-h menu-h)
       (plist-put (cdr acm-frame) :direction 'top)
       (plist-put (cdr acm-frame) :y (- init-y menu-h)))
      ;; bottom
      (t
       (plist-put (cdr acm-frame) :direction 'bottom)
       (plist-put (cdr acm-frame) :y (+ init-y 1))))))
+
+(defun acm-terminal-doc-top-edge-y (cursor-y menu-h doc-h &optional doc-lines)
+  "Return the y-coordinate of doc at left/right top edge, set :lines if possible.
+
+CURSOR-Y        y-coordinate of cursor
+MENU-H          height of menu frame
+DOC-H           height of doc frame
+DOC-LINES       text lines of doc"
+  (if (> doc-h cursor-y)
+      ;; +---------y-------+--+
+      ;; |         |       |  |
+      ;; |         |       |  |
+      ;; |  +------+       |  |
+      ;; |  |      |       |  |
+      ;; |  +-menu-+~~doc~~+  |
+      ;; |  a|     :.......:  |
+      ;; +--------------------+
+      (prog1 0
+        (when doc-lines
+          (plist-put (cdr acm-doc-frame) :lines (seq-take doc-lines cursor-y))))
+    (if (> doc-h menu-h)
+        ;; +--------------------+
+        ;; |         y-------+  |
+        ;; |         |       |  |
+        ;; |  +------+       |  |
+        ;; |  |      |       |  |
+        ;; |  +-menu-+--doc--+  |
+        ;; |  a|                |
+        ;; +--------------------+
+        (- cursor-y doc-h)
+      ;; +--------------------+
+      ;; |  +------y-------+  |
+      ;; |  |      |       |  |
+      ;; |  |      +--doc--+  |
+      ;; |  |      |          |
+      ;; |  +-menu-+          |
+      ;; |  a|                |
+      ;; +--------------------+
+      (- cursor-y menu-h))))
 
 (defun acm-terminal-doc-adjust-pos (&optional candidate-doc)
   "Adjust doc frame position."
@@ -319,23 +356,31 @@ See `popon-create' for more information."
                (`(,menu-w . ,menu-h) (popon-size acm-frame))
                (menu-right (+ menu-x menu-w))
                (doc-w nil)
-               (doc-h nil))
+               (doc-h nil)
+               (doc-lines nil))
     (cond
      ;; l:menu + r:document
      ((>= textarea-width (+ menu-right acm-terminal-doc-max-width))
-      (plist-put (cdr acm-doc-frame) :lines (acm-terminal-doc-render candidate-doc))
-      (setq doc-h (length (plist-get (cdr acm-doc-frame) :lines)))
+      (setq doc-lines (acm-terminal-doc-render candidate-doc))
+      (setq doc-h (length doc-lines))
+      (plist-put (cdr acm-doc-frame) :lines doc-lines)
       (plist-put (cdr acm-doc-frame) :x menu-right)
-      (plist-put (cdr acm-doc-frame) :y (if (>= (- edge-bottom menu-y) doc-h)
-                                            menu-y
-                                          (- edge-bottom doc-h))))
+      (plist-put (cdr acm-doc-frame)
+                 :y (if (eq 'bottom (plist-get (cdr acm-frame) :direction))
+                        ;; right bottom
+                        (1+ init-y)
+                      ;; right top
+                      (acm-terminal-doc-top-edge-y init-y menu-h doc-h doc-lines))))
      (t
       (let* ((fix-width (min acm-terminal-doc-max-width (- textarea-width 1)))
-             (rects (list
-                     (list 'right  (- textarea-width menu-x menu-w) edge-bottom)
-                     (list 'bottom fix-width (- edge-bottom edge-top menu-y menu-h))
-                     (list 'left   menu-x edge-bottom)
-                     (list 'top    fix-width menu-y))))
+             (rects
+              (list
+               (list 'right-bottom (- textarea-width menu-x menu-w) (- textarea-height init-y))
+               (list 'right-top (- textarea-width menu-x menu-w) init-y)
+               (list 'bottom fix-width (- edge-bottom edge-top menu-y menu-h))
+               (list 'left-bottom menu-x (- textarea-height init-y))
+               (list 'left-top menu-x init-y)
+               (list 'top    fix-width menu-y))))
         ;; Find the largest free space in left/top/bottom/right
         (pcase-let* ((`(,rect ,rect-width ,_rect-height)
                       (car (seq-sort (lambda (r1 r2)
@@ -352,13 +397,13 @@ See `popon-create' for more information."
           (setq doc-h (length lines)) ;; Update doc height
           (setq doc-w (1+ rerender-width))
           (pcase rect
-            ('left
+            ('left-bottom
              (plist-put (cdr acm-doc-frame) :x (- menu-x doc-w))
-             (plist-put (cdr acm-doc-frame) :y (if (>= (- edge-bottom menu-y) doc-h)
-                                                   menu-y
-                                                 (if (> edge-bottom doc-h)
-                                                     (- edge-bottom doc-h)
-                                                   edge-top))))
+             (plist-put (cdr acm-doc-frame) :y (1+ init-y)))
+            ('left-top
+             (plist-put (cdr acm-doc-frame) :x (- menu-x doc-w))
+             (plist-put (cdr acm-doc-frame) :y (acm-terminal-doc-top-edge-y
+                                                init-y menu-h doc-h doc-lines)))
             ('top
              (plist-put (cdr acm-doc-frame) :x (if (>= (- textarea-width menu-x) doc-w)
                                                    menu-x
@@ -374,11 +419,13 @@ See `popon-create' for more information."
                                                    menu-x
                                                  (- textarea-width doc-w)))
              (plist-put (cdr acm-doc-frame) :y (+ menu-y menu-h)))
-            ('right
+            ('right-bottom
              (plist-put (cdr acm-doc-frame) :x (+ menu-x menu-w))
-             (plist-put (cdr acm-doc-frame) :y (if (>= (- edge-bottom menu-y) doc-h)
-                                                   menu-y
-                                                 (- edge-bottom doc-h)))))))))
+             (plist-put (cdr acm-doc-frame) :y (1+ init-y)))
+            ('right-top
+             (plist-put (cdr acm-doc-frame) :x (+ menu-x menu-w))
+             (plist-put (cdr acm-doc-frame) :y (acm-terminal-doc-top-edge-y
+                                                init-y menu-h doc-h doc-lines))))))))
     (popon-redisplay)))
 
 (defun acm-terminal-doc-hide ()
