@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2022/07/07
 ;; Version: 0.1.0
-;; Last-Updated: 2022-09-23 09:01:25 +0800
+;; Last-Updated: 2022-09-23 10:44:35 +0800
 ;;           By: Gong Qijian
 ;; Package-Requires: ((emacs "26.1") (acm "0.1") (popon "0.3"))
 ;; URL: https://github.com/twlz0ne/acm-terminal
@@ -380,7 +380,7 @@ DOC-LINES       text lines of doc"
                (list 'bottom fix-width (- edge-bottom edge-top menu-y menu-h))
                (list 'left-bottom menu-x (- textarea-height cursor-y))
                (list 'left-top menu-x cursor-y)
-               (list 'top    fix-width menu-y))))
+               (list 'top fix-width menu-y))))
         ;; Find the largest free space in left/top/bottom/right
         (pcase-let* ((`(,rect ,rect-width ,_rect-height)
                       (car (seq-sort (lambda (r1 r2)
@@ -408,12 +408,21 @@ DOC-LINES       text lines of doc"
              (plist-put (cdr acm-doc-frame) :x (if (>= (- textarea-width menu-x) doc-w)
                                                    menu-x
                                                  (- textarea-width doc-w)))
-             (plist-put (cdr acm-doc-frame) :y (if (< menu-y cursor-y)
-                                                   (- menu-y doc-h)
-                                                 (- menu-y doc-h
-                                                    (if (eq 'bottom (plist-get (cdr acm-frame) :direction))
-                                                        1
-                                                      0)))))
+             (plist-put (cdr acm-doc-frame)
+                        :y (let ((offset 0)
+                                 (y (if (< menu-y cursor-y)
+                                        ;; menu on top
+                                        (- menu-y doc-h)
+                                      ;; menu on bottom
+                                      (- menu-y doc-h
+                                         (if (eq 'bottom (plist-get (cdr acm-frame) :direction))
+                                             (setq offset 1)
+                                           0)))))
+                             (if (< y 0)
+                                 (prog1 0
+                                   (plist-put (cdr acm-doc-frame)
+                                              :lines (seq-take lines (+ doc-h y offset))))
+                               y))))
             ('bottom
              (plist-put (cdr acm-doc-frame) :x (if (>= (- textarea-width menu-x) doc-w)
                                                    menu-x
