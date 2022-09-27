@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2022/07/07
 ;; Version: 0.1.0
-;; Last-Updated: 2022-09-26 19:27:05 +0800
+;; Last-Updated: 2022-09-27 09:08:32 +0800
 ;;           By: Gong Qijian
 ;; Package-Requires: ((emacs "26.1") (acm "0.1") (popon "0.3"))
 ;; URL: https://github.com/twlz0ne/acm-terminal
@@ -427,7 +427,10 @@ DOC-LINES       text lines of doc"
              (plist-put (cdr acm-doc-frame) :x (if (>= (- textarea-width menu-x) doc-w)
                                                    menu-x
                                                  (- textarea-width doc-w)))
-             (plist-put (cdr acm-doc-frame) :y (+ menu-y menu-h)))
+             (plist-put (cdr acm-doc-frame) :y (+ menu-y menu-h
+                                                  (if (eq 'top (plist-get (cdr acm-frame) :direction))
+                                                      1
+                                                    0))))
             ('right-bottom
              (plist-put (cdr acm-doc-frame) :x (+ menu-x menu-w))
              (plist-put (cdr acm-doc-frame) :y (1+ cursor-y)))
