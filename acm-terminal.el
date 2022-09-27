@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2022/07/07
 ;; Version: 0.1.0
-;; Last-Updated: 2022-09-27 09:08:32 +0800
+;; Last-Updated: 2022-09-27 23:05:33 +0800
 ;;           By: Gong Qijian
 ;; Package-Requires: ((emacs "26.1") (acm "0.1") (popon "0.3"))
 ;; URL: https://github.com/twlz0ne/acm-terminal
@@ -157,11 +157,8 @@ See `popon-create' for more information."
 
 (defun acm-terminal-make-frame (_)
   "Advice override `acm-make-frame' to make an invisible popon."
-  (let* ((width (if (> (window-width) acm-terminal-min-width)
-                    (min (window-width) acm-terminal-max-width)
-                  acm-terminal-min-width))
-         (pos (acm-terminal-get-popup-position)))
-    (acm-terminal-make-popon (cons "" width) pos)))
+  (let ((pos (acm-terminal-get-popup-position)))
+    (acm-terminal-make-popon (cons "" 0) pos)))
 
 (cl-defmacro acm-terminal-create-frame-if-not-exist (frame _frame-buffer _frame-name &optional _internal-border)
   `(unless (popon-live-p ,frame)
@@ -364,6 +361,7 @@ DOC-LINES       text lines of doc"
       (setq doc-lines (acm-terminal-doc-render candidate-doc))
       (setq doc-h (length doc-lines))
       (plist-put (cdr acm-doc-frame) :lines doc-lines)
+      (plist-put (cdr acm-doc-frame) :width acm-terminal-doc-max-width)
       (plist-put (cdr acm-doc-frame) :x menu-right)
       (plist-put (cdr acm-doc-frame)
                  :y (if (eq 'bottom (plist-get (cdr acm-frame) :direction))
@@ -391,11 +389,12 @@ DOC-LINES       text lines of doc"
                                             (>= (cadr r) acm-terminal-doc-min-width))
                                           rects)
                                        rects))))
-                     (rerender-width (- (min fix-width rect-width) 1))
-                     (lines (acm-terminal-doc-render candidate-doc rerender-width)))
-          (plist-put (cdr acm-doc-frame) :lines lines)
-          (setq doc-h (length lines)) ;; Update doc height
+                     (rerender-width (- (min fix-width rect-width) 1)))
+          (setq doc-lines (acm-terminal-doc-render candidate-doc rerender-width))
+          (setq doc-h (length doc-lines)) ;; Update doc height
           (setq doc-w (1+ rerender-width))
+          (plist-put (cdr acm-doc-frame) :lines doc-lines)
+          (plist-put (cdr acm-doc-frame) :width doc-w)
           (pcase rect
             ('left-bottom
              (plist-put (cdr acm-doc-frame) :x (- menu-x doc-w))
@@ -421,7 +420,7 @@ DOC-LINES       text lines of doc"
                              (if (< y 0)
                                  (prog1 0
                                    (plist-put (cdr acm-doc-frame)
-                                              :lines (seq-take lines (+ doc-h y offset))))
+                                              :lines (seq-take doc-lines (+ doc-h y offset))))
                                y))))
             ('bottom
              (plist-put (cdr acm-doc-frame) :x (if (>= (- textarea-width menu-x) doc-w)
