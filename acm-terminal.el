@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2022/07/07
 ;; Version: 0.1.0
-;; Last-Updated: 2022-09-28 23:19:19 +0800
+;; Last-Updated: 2022-09-29 05:39:49 +0800
 ;;           By: Gong Qijian
 ;; Package-Requires: ((emacs "26.1") (acm "0.1") (popon "0.3"))
 ;; URL: https://github.com/twlz0ne/acm-terminal
@@ -182,7 +182,7 @@ See `popon-create' for more information."
                                ((< acm-terminal-max-width acm-menu-max-length-cache)
                                 acm-terminal-max-width)
                                (t acm-menu-max-length-cache)))
-             (padding-length (- max-length (+ candidate-length annotation-length) 1))
+             (padding-length (- max-length (+ candidate-length 1 annotation-length) 1))
              (icon-text (if icon (acm-icon-build (nth 0 icon) (nth 1 icon) (nth 2 icon)) ""))
              (quick-access-key (nth item-index acm-quick-access-keys))
              candidate-line)
