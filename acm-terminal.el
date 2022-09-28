@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2022/07/07
 ;; Version: 0.1.0
-;; Last-Updated: 2022-09-28 15:08:24 +0800
+;; Last-Updated: 2022-09-28 23:19:19 +0800
 ;;           By: Gong Qijian
 ;; Package-Requires: ((emacs "26.1") (acm "0.1") (popon "0.3"))
 ;; URL: https://github.com/twlz0ne/acm-terminal
@@ -379,23 +379,23 @@ DOC-LINES       text lines of doc"
      ;; l:menu + r:document
      ((>= textarea-width (+ menu-right acm-terminal-doc-max-width))
       (setq doc-lines (acm-terminal-doc-render candidate-doc))
-      (setq doc-h (length doc-lines))
-      (setq doc-y (if (eq 'bottom (plist-get (cdr acm-frame) :direction))
-                      ;; right bottom
-                      (1+ cursor-y)
-                    ;; right top
-                    (acm-terminal-doc-top-edge-y cursor-y menu-h doc-h doc-lines)))
+      (if (eq 'bottom (plist-get (cdr acm-frame) :direction))
+          ;; right bottom
+          (progn
+            (setq doc-h (- textarea-height cursor-y))
+            (setq doc-y (1+ cursor-y)))
+        ;; right top
+        (setq doc-h cursor-y)
+        (setq doc-y (acm-terminal-doc-top-edge-y cursor-y menu-h (length doc-lines) doc-lines)))
       (plist-put (cdr acm-doc-frame) :width acm-terminal-doc-max-width)
       (plist-put (cdr acm-doc-frame) :x menu-right)
       (plist-put (cdr acm-doc-frame) :y doc-y)
       (plist-put (cdr acm-doc-frame) :lines
-                                     (if (<= (length doc-lines)
-                                             (- textarea-height doc-y))
+                                     (if (<= (length doc-lines) doc-h)
                                          ;; doc <= frame
                                          doc-lines
                                        ;; doc > frame
-                                       (seq-take doc-lines
-                                                 (- textarea-height doc-y)))))
+                                       (seq-take doc-lines doc-h))))
      (t
       (let* ((fix-width (min acm-terminal-doc-max-width (- textarea-width 1)))
              (rects
