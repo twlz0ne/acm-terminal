@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2022/07/07
 ;; Version: 0.1.0
-;; Last-Updated: 2022-09-27 23:05:33 +0800
+;; Last-Updated: 2022-09-28 15:08:24 +0800
 ;;           By: Gong Qijian
 ;; Package-Requires: ((emacs "26.1") (acm "0.1") (popon "0.3"))
 ;; URL: https://github.com/twlz0ne/acm-terminal
@@ -74,6 +74,9 @@
 
 (defvar-local acm-terminal-candidate-doc nil
   "Latest docstring.")
+
+(defvar-local acm-terminal-doc-scroll-start 0
+  "Start of doc scrolling.")
 
 (defvar-local acm-terminal-current-input nil
   "Curent input.")
@@ -302,6 +305,22 @@ See `popon-create' for more information."
       (plist-put (cdr acm-frame) :direction 'bottom)
       (plist-put (cdr acm-frame) :y (+ cursor-y 1))))))
 
+(defun acm-terminal-doc-get-page (lines start height)
+  "Get doc page.
+
+LINES   Doc lines
+HEIGHT  Doc frame height
+START   Start line"
+  (let* ((taken-lines (seq-take (nthcdr start lines) height))
+         (height-diff (- height (length taken-lines))))
+    (if (< 0 height-diff)
+        (append taken-lines
+                (let ((blank-line (make-string (length (car taken-lines)) ?\s)))
+                  (add-face-text-property
+                   0 (length blank-line) 'acm-default-face 'append blank-line)
+                  (make-list height-diff blank-line)))
+      taken-lines)))
+
 (defun acm-terminal-doc-top-edge-y (cursor-y menu-h doc-h &optional doc-lines)
   "Return the y-coordinate of doc at left/right top edge, set :lines if possible.
 
@@ -354,21 +373,29 @@ DOC-LINES       text lines of doc"
                (menu-right (+ menu-x menu-w))
                (doc-w nil)
                (doc-h nil)
+               (doc-y nil)
                (doc-lines nil))
     (cond
      ;; l:menu + r:document
      ((>= textarea-width (+ menu-right acm-terminal-doc-max-width))
       (setq doc-lines (acm-terminal-doc-render candidate-doc))
       (setq doc-h (length doc-lines))
-      (plist-put (cdr acm-doc-frame) :lines doc-lines)
+      (setq doc-y (if (eq 'bottom (plist-get (cdr acm-frame) :direction))
+                      ;; right bottom
+                      (1+ cursor-y)
+                    ;; right top
+                    (acm-terminal-doc-top-edge-y cursor-y menu-h doc-h doc-lines)))
       (plist-put (cdr acm-doc-frame) :width acm-terminal-doc-max-width)
       (plist-put (cdr acm-doc-frame) :x menu-right)
-      (plist-put (cdr acm-doc-frame)
-                 :y (if (eq 'bottom (plist-get (cdr acm-frame) :direction))
-                        ;; right bottom
-                        (1+ cursor-y)
-                      ;; right top
-                      (acm-terminal-doc-top-edge-y cursor-y menu-h doc-h doc-lines))))
+      (plist-put (cdr acm-doc-frame) :y doc-y)
+      (plist-put (cdr acm-doc-frame) :lines
+                                     (if (<= (length doc-lines)
+                                             (- textarea-height doc-y))
+                                         ;; doc <= frame
+                                         doc-lines
+                                       ;; doc > frame
+                                       (seq-take doc-lines
+                                                 (- textarea-height doc-y)))))
      (t
       (let* ((fix-width (min acm-terminal-doc-max-width (- textarea-width 1)))
              (rects
@@ -380,7 +407,7 @@ DOC-LINES       text lines of doc"
                (list 'left-top menu-x cursor-y)
                (list 'top fix-width menu-y))))
         ;; Find the largest free space in left/top/bottom/right
-        (pcase-let* ((`(,rect ,rect-width ,_rect-height)
+        (pcase-let* ((`(,rect ,rect-width ,rect-height)
                       (car (seq-sort (lambda (r1 r2)
                                        (> (apply #'* (cdr r1)) (apply #'* (cdr r2))))
                                      (if acm-terminal-doc-min-width
@@ -429,7 +456,8 @@ DOC-LINES       text lines of doc"
              (plist-put (cdr acm-doc-frame) :y (+ menu-y menu-h
                                                   (if (eq 'top (plist-get (cdr acm-frame) :direction))
                                                       1
-                                                    0))))
+                                                    0)))
+             (plist-put (cdr acm-doc-frame) :lines (seq-take doc-lines rect-height)))
             ('right-bottom
              (plist-put (cdr acm-doc-frame) :x (+ menu-x menu-w))
              (plist-put (cdr acm-doc-frame) :y (1+ cursor-y)))
@@ -455,6 +483,7 @@ DOC-LINES       text lines of doc"
               ("tempel" (acm-backend-tempel-candidate-doc candidate))
               (_ ""))))
       (setq acm-terminal-candidate-doc candidate-doc)
+      (setq acm-terminal-doc-scroll-start 0)
       (if (and candidate-doc
                (not (string-equal candidate-doc "")))
           (progn
@@ -466,6 +495,44 @@ DOC-LINES       text lines of doc"
 
         ;; Hide doc frame
         (acm-terminal-doc-hide)))))
+
+(defun acm-terminal-doc-scroll-up ()
+  "Scroll text of doc upward."
+  (interactive)
+  (when (popon-live-p acm-doc-frame)
+    (pcase-let*
+        ((`(,doc-x . ,doc-y) (popon-position acm-doc-frame))
+         (`(,doc-w . ,doc-h) (popon-size acm-doc-frame))
+         (total-lines
+          (acm-terminal-doc-render acm-terminal-candidate-doc (1- doc-w)))
+         (scroll-start
+          (- (+ acm-terminal-doc-scroll-start doc-h) next-screen-context-lines))
+         (taken-lines
+          (when (< scroll-start (length total-lines))
+            (acm-terminal-doc-get-page total-lines scroll-start doc-h))))
+      (when taken-lines
+        (plist-put (cdr acm-doc-frame) :lines taken-lines)
+        (popon-redisplay)
+        (setq acm-terminal-doc-scroll-start scroll-start)))))
+
+(defun acm-terminal-doc-scroll-down ()
+  "Scroll text of doc down."
+  (interactive)
+  (when (popon-live-p acm-doc-frame)
+    (pcase-let*
+        ((`(,doc-x . ,doc-y) (popon-position acm-doc-frame))
+         (`(,doc-w . ,doc-h) (popon-size acm-doc-frame))
+         (total-lines
+          (acm-terminal-doc-render acm-terminal-candidate-doc (1- doc-w)))
+         (scroll-start
+          (+ (- acm-terminal-doc-scroll-start doc-h) next-screen-context-lines))
+         (taken-lines
+          (when (<= 0 scroll-start)
+            (acm-terminal-doc-get-page total-lines scroll-start doc-h))))
+      (when taken-lines
+        (plist-put (cdr acm-doc-frame) :lines taken-lines)
+        (popon-redisplay)
+        (setq acm-terminal-doc-scroll-start scroll-start)))))
 
 (defun acm-terminal-hide ()
   (interactive)
@@ -545,6 +612,8 @@ DOC-LINES       text lines of doc"
 (advice-add 'acm-update :override #'acm-terminal-update)
 (advice-add 'acm-doc-show :override #'acm-terminal-doc-show)
 (advice-add 'acm-doc-hide :override #'acm-terminal-doc-hide)
+(advice-add 'acm-doc-scroll-up :override #'acm-terminal-doc-scroll-up)
+(advice-add 'acm-doc-scroll-down :override #'acm-terminal-doc-scroll-down)
 (advice-add 'acm-menu-render :override #'acm-terminal-menu-render)
 (advice-add 'acm-menu-render-items :override #'acm-terminal-menu-render-items)
 
