@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2022/07/07
 ;; Version: 0.1.0
-;; Last-Updated: 2022-09-29 05:39:49 +0800
+;; Last-Updated: 2022-09-29 10:33:07 +0800
 ;;           By: Gong Qijian
 ;; Package-Requires: ((emacs "26.1") (acm "0.1") (popon "0.3"))
 ;; URL: https://github.com/twlz0ne/acm-terminal
@@ -297,7 +297,7 @@ See `popon-create' for more information."
       (plist-put (cdr acm-frame) :x x))
     (cond
      ;; top
-     ((< bottom-free-h menu-h)
+     ((<= bottom-free-h menu-h)
       (plist-put (cdr acm-frame) :direction 'top)
       (plist-put (cdr acm-frame) :y (- cursor-y menu-h)))
      ;; bottom
