@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2022/07/07
 ;; Version: 0.1.0
-;; Last-Updated: 2022-09-29 10:33:07 +0800
+;; Last-Updated: 2022-09-30 13:43:20 +0800
 ;;           By: Gong Qijian
 ;; Package-Requires: ((emacs "26.1") (acm "0.1") (popon "0.3"))
 ;; URL: https://github.com/twlz0ne/acm-terminal
@@ -177,11 +177,23 @@ See `popon-create' for more information."
              (annotation (plist-get v :annotation))
              (annotation-text (if annotation annotation ""))
              (annotation-length (funcall acm-string-width-function annotation-text))
-             (max-length (cond ((< acm-menu-max-length-cache acm-terminal-min-width)
+             ;; The `acm-menu-max-length-cache' is calcuated base on the format
+             ;; bellow (see `acm-menu-max-length'):
+             ;;
+             ;;   "{label}\s{annotation}"
+             ;;
+             ;; but in Terminal we render the items in a different way, so the
+             ;; calculation format should be:
+             ;;
+             ;;   "{label}\s{annotation}\s"
+             ;;
+             ;; without changing the format, then we should add 1 when using
+             ;; `acm-menu-max-length-cache'.
+             (max-length (cond ((< (+ acm-menu-max-length-cache 1) acm-terminal-min-width)
                                 acm-terminal-min-width)
-                               ((< acm-terminal-max-width acm-menu-max-length-cache)
+                               ((< acm-terminal-max-width (+ acm-menu-max-length-cache 1))
                                 acm-terminal-max-width)
-                               (t acm-menu-max-length-cache)))
+                               (t (+ acm-menu-max-length-cache 1))))
              (padding-length (- max-length (+ candidate-length 1 annotation-length) 1))
              (icon-text (if icon (acm-icon-build (nth 0 icon) (nth 1 icon) (nth 2 icon)) ""))
              (quick-access-key (nth item-index acm-quick-access-keys))
@@ -202,6 +214,7 @@ See `popon-create' for more information."
                  (if (> padding-length 0)
                      (concat candidate (make-string padding-length ?\s))
                    (truncate-string-to-width candidate max-length 0 ?\s)))
+               " "
                (propertize (format "%s \n" (capitalize annotation-text))
                            'face
                            (if (equal item-index menu-index) 'acm-select-face 'font-lock-doc-face))))
