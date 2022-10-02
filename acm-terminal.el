@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2022/07/07
 ;; Version: 0.1.0
-;; Last-Updated: 2022-09-30 13:43:20 +0800
+;; Last-Updated: 2022-10-02 19:05:44 +0800
 ;;           By: Gong Qijian
 ;; Package-Requires: ((emacs "26.1") (acm "0.1") (popon "0.3"))
 ;; URL: https://github.com/twlz0ne/acm-terminal
@@ -288,7 +288,7 @@ See `popon-create' for more information."
 
     ;; Fetch `documentation' and `additionalTextEdits' information.
     (cl-letf (((symbol-function 'acm-frame-visible-p) 'acm-terminal-popon-visible-p))
-      (acm-fetch-candidate-doc))))
+      (acm-terminal-doc-try-show))))
 
 (defun acm-terminal-menu-adjust-pos (&optional lines)
   "Adjust menu frame position."
@@ -484,17 +484,14 @@ DOC-LINES       text lines of doc"
   (when (popon-live-p acm-doc-frame)
     (setq acm-doc-frame (popon-kill acm-doc-frame))))
 
-(defun acm-terminal-doc-show ()
+(defun acm-terminal-doc-try-show ()
   (when acm-enable-doc
     (let* ((candidate (acm-menu-current-candidate))
            (backend (plist-get candidate :backend))
+           (candidate-doc-func (intern-soft (format "acm-backend-%s-candidate-doc" backend)))
            (candidate-doc
-            (pcase backend
-              ("lsp" (acm-backend-lsp-candidate-doc candidate))
-              ("elisp" (acm-backend-elisp-candidate-doc candidate))
-              ("yas" (acm-backend-yas-candidate-doc candidate))
-              ("tempel" (acm-backend-tempel-candidate-doc candidate))
-              (_ ""))))
+            (when (fboundp candidate-doc-func)
+              (funcall candidate-doc-func candidate))))
       (setq acm-terminal-candidate-doc candidate-doc)
       (setq acm-terminal-doc-scroll-start 0)
       (if (and candidate-doc
@@ -623,7 +620,7 @@ DOC-LINES       text lines of doc"
 (advice-add 'acm-init-colors :override 'acm-terminal-init-colors)
 (advice-add 'acm-hide :override #'acm-terminal-hide)
 (advice-add 'acm-update :override #'acm-terminal-update)
-(advice-add 'acm-doc-show :override #'acm-terminal-doc-show)
+(advice-add 'acm-doc-try-show :override #'acm-terminal-doc-try-show)
 (advice-add 'acm-doc-hide :override #'acm-terminal-doc-hide)
 (advice-add 'acm-doc-scroll-up :override #'acm-terminal-doc-scroll-up)
 (advice-add 'acm-doc-scroll-down :override #'acm-terminal-doc-scroll-down)
