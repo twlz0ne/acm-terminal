@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2022/07/07
 ;; Version: 0.1.0
-;; Last-Updated: 2022-10-02 19:05:44 +0800
+;; Last-Updated: 2022-10-02 20:56:24 +0800
 ;;           By: Gong Qijian
 ;; Package-Requires: ((emacs "26.1") (acm "0.1") (popon "0.3"))
 ;; URL: https://github.com/twlz0ne/acm-terminal
@@ -86,7 +86,7 @@
     (((background light)) :background "white"))
   "Default face for Terminal.")
 
-(defun acm-teminal-line-number-display-width ()
+(defun acm-terminal-line-number-display-width ()
   "Return width of line number bar."
   (if (bound-and-true-p display-line-numbers-mode)
       (+ (line-number-display-width) 2)
@@ -295,7 +295,7 @@ See `popon-create' for more information."
   (pcase-let* ((`(,edge-left ,edge-top ,edge-right ,edge-bottom) (window-inside-edges))
                (textarea-width (- (window-width)
                                   (+ (- edge-left (window-left-column))
-                                     (acm-teminal-line-number-display-width))))
+                                     (acm-terminal-line-number-display-width))))
                (textarea-height (- edge-bottom edge-top))
                (`(,cursor-x . ,cursor-y)
                 (prog1 (acm-terminal-get-popup-position)
@@ -378,7 +378,7 @@ DOC-LINES       text lines of doc"
   (pcase-let* ((`(,edge-left ,edge-top ,edge-right ,edge-bottom) (window-inside-edges))
                (textarea-width (- (window-width)
                                   (+ (- edge-left (window-left-column))
-                                     (acm-teminal-line-number-display-width))))
+                                     (acm-terminal-line-number-display-width))))
                (textarea-height (- edge-bottom edge-top))
                (`(,cursor-x . ,cursor-y) (acm-terminal-get-popup-position))
                (`(,menu-x . ,menu-y) (popon-position acm-frame))
