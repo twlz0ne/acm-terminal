@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2022/07/07
 ;; Version: 0.1.0
-;; Last-Updated: 2022-10-02 20:56:24 +0800
+;; Last-Updated: 2022-10-03 18:04:31 +0800
 ;;           By: Gong Qijian
 ;; Package-Requires: ((emacs "26.1") (acm "0.1") (popon "0.3"))
 ;; URL: https://github.com/twlz0ne/acm-terminal
@@ -54,6 +54,7 @@
 
 ;;; Code:
 
+(require 'subr-x)
 (require 'acm)
 (require 'popon)
 
@@ -100,20 +101,25 @@ substring lenght, e.g.:
 
   (fn \"foobarbazq\" 3 \"↩\") => (\"fo↩\" \"ob↩\" \"ar↩\" \"q\")
   (fn \"foobarbazq\" 3)     => (\"foo\" \"bar\" \"q\") "
-  (let* ((len (length string))
-         (from 0)
-         (step (- width (length cont)))
-         (to step)
-         lines)
-    (if (>= to len)
-        (list string)
-      (while (< from len)
-        (push (concat (substring string from (min to len)) cont) lines)
-        (setq from to)
-        (setq to (+ to step)))
-      (when cont
-        (setf (car lines) (substring (car lines) 0 (- (length cont)))))
-      (reverse lines))))
+  (let* ((cont (or cont ""))
+         (cont-width (string-width cont))
+         last-column)
+    (with-temp-buffer
+      (insert string)
+      (goto-char (point-min))
+      (while (not (eobp))
+        (setq last-column (current-column))
+        (forward-char)
+        (when (eq ?\t (char-before (point)))
+          (let ((tab-width (- (current-column) last-column)))
+            (backward-delete-char 1)
+            (insert (make-string tab-width ?\s))))
+        (when (and (not (eolp)) (<= width (current-column)))
+          (backward-char cont-width)
+          (insert cont "\n")))
+      (mapcar (lambda (line)
+                (truncate-string-to-width line width 0 ?\s))
+              (split-string (buffer-string) "\n")))))
 
 (defun acm-terminal-init-colors (&optional force)
   (let* ((is-dark-mode (string-equal (acm-get-theme-mode) "dark"))
@@ -243,15 +249,12 @@ See `popon-create' for more information."
 
 (defun acm-terminal-doc-render (doc &optional width)
   "Render DOC string."
-  (let ((width (or width (1- acm-terminal-doc-max-width)))
-        lines)
-    (dolist (nline (split-string doc "\n") lines)
-      (dolist (mline (acm-terminal-nsplit-string
-                      nline width acm-terminal-doc-continuation-string) lines)
-        (setq mline (string-pad mline width))
-        (add-face-text-property 0 (length mline) 'acm-default-face 'append mline)
-        (push mline lines)))
-    (reverse lines)))
+  (let ((width (or width (1- acm-terminal-doc-max-width))))
+    (mapcar
+     (lambda (line)
+       (add-face-text-property 0 (length line) 'acm-default-face 'append line)
+       line)
+     (acm-terminal-nsplit-string doc width acm-terminal-doc-continuation-string))))
 
 (defun acm-terminal-menu-render (menu-old-cache)
   (let* ((items acm-menu-candidates)
