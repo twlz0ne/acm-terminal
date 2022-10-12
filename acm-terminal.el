@@ -574,7 +574,7 @@ DOC-LINES       text lines of doc"
          (bounds (bounds-of-thing-at-point 'symbol))
          (direction (when (popon-live-p acm-frame)
                       (plist-get (cdr acm-frame) :direction))))
-    (setq acm-terminal-current-input (acm-backend-search-words-get-point-string))
+    (setq acm-terminal-current-input (acm-backend-search-file-words-get-point-string))
     (cond
      ;; Hide completion menu if user type first candidate completely.
      ((and (equal (length candidates) 1)
