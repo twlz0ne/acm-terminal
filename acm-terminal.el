@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2022/07/07
 ;; Version: 0.1.0
-;; Last-Updated: 2022-10-03 18:04:31 +0800
+;; Last-Updated: 2022-10-21 13:07:21 +0800
 ;;           By: Gong Qijian
 ;; Package-Requires: ((emacs "26.1") (acm "0.1") (popon "0.3"))
 ;; URL: https://github.com/twlz0ne/acm-terminal
@@ -83,9 +83,12 @@
   "Curent input.")
 
 (defface acm-terminal-default-face
-  '((((background dark))  :background "black")
-    (((background light)) :background "white"))
+  '()
   "Default face for Terminal.")
+
+(defface acm-terminal-select-face
+  '()
+  "Default select face for Terminal.")
 
 (defun acm-terminal-line-number-display-width ()
   "Return width of line number bar."
@@ -124,20 +127,18 @@ substring lenght, e.g.:
 (defun acm-terminal-init-colors (&optional force)
   (let* ((is-dark-mode (string-equal (acm-get-theme-mode) "dark"))
          (blend-background (if is-dark-mode "#000000" "#AAAAAA"))
-         (default-background (let ((background (face-attribute 'default :background)))
-                               (if (member background '("unspecified-bg" "unspecified"))
-                                   (face-attribute 'acm-terminal-default-face :background)
-                                 background))))
+         (default-background (or (face-attribute 'acm-terminal-default-face :background)
+                                 (face-attribute 'default :background))))
     ;; Make sure font size of frame same as Emacs.
     (set-face-attribute 'acm-buffer-size-face nil :height (face-attribute 'default :height))
 
     ;; Make sure menu follow the theme of Emacs.
-    (when (or force (equal (face-attribute 'acm-default-face :background) 'unspecified))
-      (set-face-background 'acm-default-face (acm-color-blend default-background blend-background (if is-dark-mode 0.8 0.9))))
-    (when (or force (equal (face-attribute 'acm-select-face :background) 'unspecified))
-      (set-face-background 'acm-select-face (acm-color-blend default-background blend-background 0.6)))
-    (when (or force (equal (face-attribute 'acm-select-face :foreground) 'unspecified))
-      (set-face-foreground 'acm-select-face (face-attribute 'font-lock-function-name-face :foreground)))))
+    (when (or force (equal (face-attribute 'acm-terminal-default-face :background) 'unspecified))
+      (set-face-background 'acm-terminal-default-face (acm-color-blend default-background blend-background (if is-dark-mode 0.8 0.9))))
+    (when (or force (equal (face-attribute 'acm-terminal-select-face :background) 'unspecified))
+      (set-face-background 'acm-terminal-select-face (acm-color-blend default-background blend-background 0.6)))
+    (when (or force (equal (face-attribute 'acm-terminal-select-face :foreground) 'unspecified))
+      (set-face-foreground 'acm-terminal-select-face (face-attribute 'font-lock-function-name-face :foreground)))))
 
 (defun acm-terminal-get-popup-position ()
   "Return postion of menu."
@@ -223,19 +224,19 @@ See `popon-create' for more information."
                " "
                (propertize (format "%s \n" (capitalize annotation-text))
                            'face
-                           (if (equal item-index menu-index) 'acm-select-face 'font-lock-doc-face))))
+                           (if (equal item-index menu-index) 'acm-terminal-select-face 'font-lock-doc-face))))
 
         ;; Render current candidate.
         (if (equal item-index menu-index)
             (progn
-              (add-face-text-property 0 (length candidate-line) 'acm-select-face 'append candidate-line)
+              (add-face-text-property 0 (length candidate-line) 'acm-terminal-select-face 'append candidate-line)
 
               ;; Hide doc frame if some backend not support fetch candidate documentation.
               (when (and
                      (not (member (plist-get v :backend) '("lsp" "elisp" "yas")))
                      (acm-frame-visible-p acm-doc-frame))
                 (acm-doc-hide)))
-          (add-face-text-property 0 (length candidate-line) 'acm-default-face 'append candidate-line))
+          (add-face-text-property 0 (length candidate-line) 'acm-terminal-default-face 'append candidate-line))
 
         ;; Insert candidate line.
         (insert candidate-line)
@@ -252,7 +253,7 @@ See `popon-create' for more information."
   (let ((width (or width (1- acm-terminal-doc-max-width))))
     (mapcar
      (lambda (line)
-       (add-face-text-property 0 (length line) 'acm-default-face 'append line)
+       (add-face-text-property 0 (length line) 'acm-terminal-default-face 'append line)
        line)
      (acm-terminal-nsplit-string doc width acm-terminal-doc-continuation-string))))
 
@@ -333,7 +334,7 @@ START   Start line"
         (append taken-lines
                 (let ((blank-line (make-string (length (car taken-lines)) ?\s)))
                   (add-face-text-property
-                   0 (length blank-line) 'acm-default-face 'append blank-line)
+                   0 (length blank-line) 'acm-terminal-default-face 'append blank-line)
                   (make-list height-diff blank-line)))
       taken-lines)))
 
