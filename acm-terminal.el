@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2022/07/07
 ;; Version: 0.1.0
-;; Last-Updated: 2022-10-21 13:07:21 +0800
+;; Last-Updated: 2022-10-26 19:03:28 +0800
 ;;           By: Gong Qijian
 ;; Package-Requires: ((emacs "26.1") (acm "0.1") (popon "0.3"))
 ;; URL: https://github.com/twlz0ne/acm-terminal
@@ -127,8 +127,10 @@ substring lenght, e.g.:
 (defun acm-terminal-init-colors (&optional force)
   (let* ((is-dark-mode (string-equal (acm-get-theme-mode) "dark"))
          (blend-background (if is-dark-mode "#000000" "#AAAAAA"))
-         (default-background (or (face-attribute 'acm-terminal-default-face :background)
-                                 (face-attribute 'default :background))))
+         (default-background (or (face-background 'acm-terminal-default-face)
+                                 (pcase (face-background 'default)
+                                   ("unspecified-bg" "white")
+                                   (`,color color)))))
     ;; Make sure font size of frame same as Emacs.
     (set-face-attribute 'acm-buffer-size-face nil :height (face-attribute 'default :height))
 
