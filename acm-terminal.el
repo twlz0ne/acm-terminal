@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2022/07/07
 ;; Version: 0.1.0
-;; Last-Updated: 2022-10-26 19:03:28 +0800
+;; Last-Updated: 2022-10-27 21:17:10 +0800
 ;;           By: Gong Qijian
 ;; Package-Requires: ((emacs "26.1") (acm "0.1") (popon "0.3"))
 ;; URL: https://github.com/twlz0ne/acm-terminal
@@ -310,7 +310,7 @@ See `popon-create' for more information."
                     (plist-put (cdr acm-frame) :width (length (car lines))))))
                (`(,menu-w . ,menu-h) (popon-size acm-frame))
                (bottom-free-h (- edge-bottom edge-top cursor-y)))
-    (let ((x (if (>= textarea-width (+ cursor-x menu-w))
+    (let ((x (if (> textarea-width (+ cursor-x menu-w))
                  cursor-x
                (- cursor-x (- (+ cursor-x menu-w) textarea-width) 1))))
       (plist-put (cdr acm-frame) :x x))
