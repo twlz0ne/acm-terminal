@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2022/07/07
 ;; Version: 0.1.0
-;; Last-Updated: 2022-10-27 21:17:10 +0800
+;; Last-Updated: 2022-11-06 12:11:20 +0800
 ;;           By: Gong Qijian
 ;; Package-Requires: ((emacs "26.1") (acm "0.1") (popon "0.3"))
 ;; URL: https://github.com/twlz0ne/acm-terminal
@@ -144,9 +144,9 @@ substring lenght, e.g.:
 
 (defun acm-terminal-get-popup-position ()
   "Return postion of menu."
-  ;; The existing overlay will cause `popon-x-y-at-pos' and `posn-x-y' to get
-  ;; the wrong position.
-  (if acm-frame
+  (if (and acm-frame (eobp))
+      ;; The existing overlay will cause `popon-x-y-at-pos' and `posn-x-y' to
+      ;; get the wrong position when point at the and of buffer.
       (let ((pos (popon-position acm-frame))
             (direction (plist-get (cdr acm-frame) :direction))
             (size (popon-size acm-frame)))
@@ -155,7 +155,9 @@ substring lenght, e.g.:
                   (+ (cdr pos) (cdr size))
                 (1- (cdr pos)))))
     (let ((pos (popon-x-y-at-pos acm-frame-popup-point)))
-      (cons (car pos) (1+ (cdr pos))))))
+      (if (eobp)
+          (cons (car pos) (1+ (cdr pos)))
+        pos))))
 
 (defun acm-terminal-popon-visible-p (popon)
   (when (popon-live-p popon)
