@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2022/07/07
 ;; Version: 0.1.0
-;; Last-Updated: 2022-11-06 12:11:20 +0800
+;; Last-Updated: 2022-11-12 09:11:09 +0800
 ;;           By: Gong Qijian
 ;; Package-Requires: ((emacs "26.1") (acm "0.1") (popon "0.3"))
 ;; URL: https://github.com/twlz0ne/acm-terminal
@@ -106,9 +106,12 @@ substring lenght, e.g.:
   (fn \"foobarbazq\" 3)     => (\"foo\" \"bar\" \"q\") "
   (let* ((cont (or cont ""))
          (cont-width (string-width cont))
-         last-column)
+         last-column
+         lines)
     (with-temp-buffer
       (insert string)
+      (cl-letf (((symbol-function 'window-body-width) (lambda (&rest _) width)))
+        (lsp-bridge-render-markdown-content))
       (goto-char (point-min))
       (while (not (eobp))
         (setq last-column (current-column))
@@ -118,7 +121,10 @@ substring lenght, e.g.:
             (backward-delete-char 1)
             (insert (make-string tab-width ?\s))))
         (when (and (not (eolp)) (<= width (current-column)))
-          (backward-char cont-width)
+          (unless (let ((props (text-properties-at (1- (point)))))
+                    ;; pagebreak line
+                    (and (memq 'display props) (memq 'markdown-hr-face props)))
+            (backward-char cont-width))
           (insert cont "\n")))
       (mapcar (lambda (line)
                 (truncate-string-to-width line width 0 ?\s))
@@ -254,12 +260,13 @@ See `popon-create' for more information."
 
 (defun acm-terminal-doc-render (doc &optional width)
   "Render DOC string."
-  (let ((width (or width (1- acm-terminal-doc-max-width))))
-    (mapcar
-     (lambda (line)
-       (add-face-text-property 0 (length line) 'acm-terminal-default-face 'append line)
-       line)
-     (acm-terminal-nsplit-string doc width acm-terminal-doc-continuation-string))))
+  (when (and (stringp doc) (not (string-empty-p doc)))
+    (let ((width (or width (1- acm-terminal-doc-max-width))))
+      (mapcar
+       (lambda (line)
+         (add-face-text-property 0 (length line) 'acm-terminal-default-face 'append line)
+         line)
+       (acm-terminal-nsplit-string doc width acm-terminal-doc-continuation-string)))))
 
 (defun acm-terminal-menu-render (menu-old-cache)
   (let* ((items acm-menu-candidates)
@@ -502,17 +509,21 @@ DOC-LINES       text lines of doc"
               (funcall candidate-doc-func candidate))))
       (setq acm-terminal-candidate-doc candidate-doc)
       (setq acm-terminal-doc-scroll-start 0)
-      (if (and candidate-doc
-               (not (string-equal candidate-doc "")))
+      (if (or (consp candidate-doc)
+              (and (stringp candidate-doc) (not (string-empty-p candidate-doc))))
           (progn
             ;; Create doc frame if it not exist.
             (acm-terminal-create-frame-if-not-exist acm-doc-frame acm-doc-buffer "acm doc frame")
 
             ;; Adjust doc frame position and size.
-            (acm-terminal-doc-adjust-pos candidate-doc))
+            (acm-terminal-doc-adjust-pos (if (stringp candidate-doc)
+                                             candidate-doc
+                                           (format "%S" candidate-doc))))
 
-        ;; Hide doc frame
-        (acm-terminal-doc-hide)))))
+        ;; Hide doc frame immediately if backend is not LSP.
+        ;; If backend is LSP, doc frame hide is control by `lsp-bridge-completion-item--update'.
+        (unless (string-equal backend "lsp")
+          (acm-doc-hide))))))
 
 (defun acm-terminal-doc-scroll-up ()
   "Scroll text of doc upward."
@@ -554,32 +565,42 @@ DOC-LINES       text lines of doc"
 
 (defun acm-terminal-hide ()
   (interactive)
-  ;; Turn off `acm-mode'.
-  (acm-mode -1)
+  (let* ((candidate-info (acm-menu-current-candidate))
+         (backend (plist-get candidate-info :backend)))
+    ;; Turn off `acm-mode'.
+    (acm-mode -1)
 
-  ;; Hide menu frame.
-  (when acm-frame
-    (setq acm-frame (popon-kill acm-frame)))
+    ;; Hide menu frame.
+    (when acm-frame
+      (setq acm-frame (popon-kill acm-frame)))
 
-  ;; Hide doc frame.
-  (acm-terminal-doc-hide)
+    ;; Hide doc frame.
+    (acm-doc-hide)
 
-  ;; Clean `acm-menu-max-length-cache'.
-  (setq acm-menu-max-length-cache 0)
+    ;; Clean `acm-menu-max-length-cache'.
+    (setq acm-menu-max-length-cache 0)
 
-  ;; Remove hook of `acm--pre-command'.
-  (remove-hook 'pre-command-hook #'acm--pre-command 'local))
+    ;; Remove hook of `acm--pre-command'.
+    (remove-hook 'pre-command-hook #'acm--pre-command 'local)
+
+    ;; Clean backend cache.
+    (when-let* ((backend-clean (intern-soft (format "acm-backend-%s-clean" backend)))
+                (fp (fboundp backend-clean)))
+      (funcall backend-clean))))
 
 (defun acm-terminal-update ()
   ;; Adjust `gc-cons-threshold' to maximize temporary,
   ;; make sure Emacs not do GC when filter/sort candidates.
   (let* ((gc-cons-threshold most-positive-fixnum)
          (keyword (acm-get-input-prefix))
+         (previous-select-candidate-index (+ acm-menu-offset acm-menu-index))
+         (previous-select-candidate (acm-menu-index-info (acm-menu-current-candidate)))
          (candidates (acm-update-candidates))
-         (bounds (bounds-of-thing-at-point 'symbol))
+         (menu-candidates (cl-subseq candidates 0 (min (length candidates) acm-menu-length)))
+         (current-select-candidate-index (cl-position previous-select-candidate (mapcar 'acm-menu-index-info menu-candidates) :test 'equal))
          (direction (when (popon-live-p acm-frame)
-                      (plist-get (cdr acm-frame) :direction))))
-    (setq acm-terminal-current-input (acm-backend-search-file-words-get-point-string))
+                      (plist-get (cdr acm-frame) :direction)))
+         (bounds (acm-get-input-prefix-bound)))
     (cond
      ;; Hide completion menu if user type first candidate completely.
      ((and (equal (length candidates) 1)
@@ -595,14 +616,36 @@ DOC-LINES       text lines of doc"
         ;; Use `pre-command-hook' to hide completion menu when command match `acm-continue-commands'.
         (add-hook 'pre-command-hook #'acm--pre-command nil 'local)
 
-        ;; Init candidates, menu index and offset.
+        ;; Adjust candidates.
+        (setq-local acm-menu-offset 0)  ;init offset to 0
+        (if (zerop (length acm-menu-candidates))
+            ;; Adjust `acm-menu-index' to -1 if no candidates found.
+            (setq-local acm-menu-index -1)
+          ;; First init `acm-menu-index' to 0.
+          (setq-local acm-menu-index 0)
+
+          ;; The following code is specifically to adjust the selection position of candidate when typing fast.
+          (when (and current-select-candidate-index
+                     (> (length candidates) 1))
+            (cond
+             ;; Swap the position of the first two candidates
+             ;; if previous candidate's position change from 1st to 2nd.
+             ((and (= previous-select-candidate-index 0) (= current-select-candidate-index 1))
+              (cl-rotatef (nth 0 candidates) (nth 1 candidates))
+              (cl-rotatef (nth 0 menu-candidates) (nth 1 menu-candidates)))
+             ;; Swap the position of the first two candidates and select 2nd postion
+             ;; if previous candidate's position change from 2nd to 1st.
+             ((and (= previous-select-candidate-index 1) (= current-select-candidate-index 0))
+              (cl-rotatef (nth 0 candidates) (nth 1 candidates))
+              (cl-rotatef (nth 0 menu-candidates) (nth 1 menu-candidates))
+              (setq-local acm-menu-index 1))
+             ;; Select 2nd position if previous candidate's position still is 2nd.
+             ((and (= previous-select-candidate-index 1) (= current-select-candidate-index 1))
+              (setq-local acm-menu-index 1)))))
+
+        ;; Set candidates and menu candidates.
         (setq-local acm-candidates candidates)
-        (setq-local acm-menu-candidates
-                    (cl-subseq acm-candidates
-                               0 (min (length acm-candidates)
-                                      acm-menu-length)))
-        (setq-local acm-menu-index (if (zerop (length acm-menu-candidates)) -1 0))
-        (setq-local acm-menu-offset 0)
+        (setq-local acm-menu-candidates menu-candidates)
 
         ;; Init colors.
         (acm-init-colors)
