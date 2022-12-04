@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2022/07/07
 ;; Version: 0.1.0
-;; Last-Updated: 2022-11-12 09:11:09 +0800
+;; Last-Updated: 2022-12-04 12:22:04 +0800
 ;;           By: Gong Qijian
 ;; Package-Requires: ((emacs "26.1") (acm "0.1") (popon "0.3"))
 ;; URL: https://github.com/twlz0ne/acm-terminal
@@ -110,8 +110,9 @@ substring lenght, e.g.:
          lines)
     (with-temp-buffer
       (insert string)
-      (cl-letf (((symbol-function 'window-body-width) (lambda (&rest _) width)))
-        (lsp-bridge-render-markdown-content))
+      (when acm-markdown-render-timer
+        (cl-letf (((symbol-function 'window-body-width) (lambda (&rest _) width)))
+          (acm-markdown-render-content)))
       (goto-char (point-min))
       (while (not (eobp))
         (setq last-column (current-column))
@@ -121,9 +122,10 @@ substring lenght, e.g.:
             (backward-delete-char 1)
             (insert (make-string tab-width ?\s))))
         (when (and (not (eolp)) (<= width (current-column)))
-          (unless (let ((props (text-properties-at (1- (point)))))
-                    ;; pagebreak line
-                    (and (memq 'display props) (memq 'markdown-hr-face props)))
+          (unless ;; Backward if there is not a pagebreak line
+              (and acm-markdown-render-timer
+                   (let ((props (text-properties-at (1- (point)))))
+                     (and (memq 'display props) (memq 'markdown-hr-face props))))
             (backward-char cont-width))
           (insert cont "\n")))
       (mapcar (lambda (line)
@@ -497,7 +499,10 @@ DOC-LINES       text lines of doc"
 
 (defun acm-terminal-doc-hide ()
   (when (popon-live-p acm-doc-frame)
-    (setq acm-doc-frame (popon-kill acm-doc-frame))))
+    (setq acm-doc-frame (popon-kill acm-doc-frame)))
+
+  (acm-cancel-timer acm-markdown-render-timer)
+  (setq acm-markdown-render-doc nil))
 
 (defun acm-terminal-doc-try-show ()
   (when acm-enable-doc
@@ -509,16 +514,25 @@ DOC-LINES       text lines of doc"
               (funcall candidate-doc-func candidate))))
       (setq acm-terminal-candidate-doc candidate-doc)
       (setq acm-terminal-doc-scroll-start 0)
-      (if (or (consp candidate-doc)
+      (if (or (consp candidate-doc) ; If the type fo snippet is set to command,
+                                        ; then the "doc" will be a list.
               (and (stringp candidate-doc) (not (string-empty-p candidate-doc))))
-          (progn
+          (let ((doc (if (stringp candidate-doc)
+                         candidate-doc
+                       (format "%S" candidate-doc))))
             ;; Create doc frame if it not exist.
             (acm-terminal-create-frame-if-not-exist acm-doc-frame acm-doc-buffer "acm doc frame")
 
             ;; Adjust doc frame position and size.
-            (acm-terminal-doc-adjust-pos (if (stringp candidate-doc)
-                                             candidate-doc
-                                           (format "%S" candidate-doc))))
+            (if (string-equal backend "lsp")
+                (progn
+                  ;; NOTE: It is imposible to do it as in the GUI:
+                  ;; Insert doc first, then render in timer.
+                  (acm-cancel-timer acm-markdown-render-timer)
+                  (setq acm-markdown-render-timer
+                        (run-with-idle-timer
+                         0.2 nil #'acm-terminal-doc-adjust-pos doc)))
+              (acm-terminal-doc-adjust-pos doc)))
 
         ;; Hide doc frame immediately if backend is not LSP.
         ;; If backend is LSP, doc frame hide is control by `lsp-bridge-completion-item--update'.
