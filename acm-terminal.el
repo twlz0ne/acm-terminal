@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2022/07/07
 ;; Version: 0.1.0
-;; Last-Updated: 2022-12-04 12:22:04 +0800
+;; Last-Updated: 2023-01-09 18:32:13 +0800
 ;;           By: Gong Qijian
 ;; Package-Requires: ((emacs "26.1") (acm "0.1") (popon "0.3"))
 ;; URL: https://github.com/twlz0ne/acm-terminal
@@ -133,36 +133,34 @@ substring lenght, e.g.:
               (split-string (buffer-string) "\n")))))
 
 (defun acm-terminal-init-colors (&optional force)
-  (let* ((is-dark-mode (string-equal (acm-get-theme-mode) "dark"))
+  (let* ((is-dark-mode (string-equal (acm-frame-get-theme-mode) "dark"))
          (blend-background (if is-dark-mode "#000000" "#AAAAAA"))
          (default-background (or (face-background 'acm-terminal-default-face)
                                  (pcase (face-background 'default)
                                    ("unspecified-bg" "white")
                                    (`,color color)))))
-    ;; Make sure font size of frame same as Emacs.
-    (set-face-attribute 'acm-buffer-size-face nil :height (face-attribute 'default :height))
 
     ;; Make sure menu follow the theme of Emacs.
     (when (or force (equal (face-attribute 'acm-terminal-default-face :background) 'unspecified))
-      (set-face-background 'acm-terminal-default-face (acm-color-blend default-background blend-background (if is-dark-mode 0.8 0.9))))
+      (set-face-background 'acm-terminal-default-face (acm-frame-color-blend default-background blend-background (if is-dark-mode 0.8 0.9))))
     (when (or force (equal (face-attribute 'acm-terminal-select-face :background) 'unspecified))
-      (set-face-background 'acm-terminal-select-face (acm-color-blend default-background blend-background 0.6)))
+      (set-face-background 'acm-terminal-select-face (acm-frame-color-blend default-background blend-background 0.6)))
     (when (or force (equal (face-attribute 'acm-terminal-select-face :foreground) 'unspecified))
       (set-face-foreground 'acm-terminal-select-face (face-attribute 'font-lock-function-name-face :foreground)))))
 
 (defun acm-terminal-get-popup-position ()
   "Return postion of menu."
-  (if (and acm-frame (eobp))
+  (if (and acm-menu-frame (eobp))
       ;; The existing overlay will cause `popon-x-y-at-pos' and `posn-x-y' to
       ;; get the wrong position when point at the and of buffer.
-      (let ((pos (popon-position acm-frame))
-            (direction (plist-get (cdr acm-frame) :direction))
-            (size (popon-size acm-frame)))
+      (let ((pos (popon-position acm-menu-frame))
+            (direction (plist-get (cdr acm-menu-frame) :direction))
+            (size (popon-size acm-menu-frame)))
         (cons (car pos)
               (if (eq 'top direction)
                   (+ (cdr pos) (cdr size))
                 (1- (cdr pos)))))
-    (let ((pos (popon-x-y-at-pos acm-frame-popup-point)))
+    (let ((pos (popon-x-y-at-pos acm-menu-frame-popup-point)))
       (if (eobp)
           (cons (car pos) (1+ (cdr pos)))
         pos))))
@@ -282,7 +280,7 @@ See `popon-create' for more information."
     (setq acm-menu-number-cache menu-new-number)
 
     ;; Insert menu candidates.
-    (when acm-frame
+    (when acm-menu-frame
       (let ((lines (split-string
                     (with-temp-buffer
                       (acm-menu-render-items items menu-index)
@@ -292,7 +290,7 @@ See `popon-create' for more information."
         (acm-terminal-menu-adjust-pos lines))
 
       (popon-redisplay)
-      (plist-put (cdr acm-frame) :visible t))
+      (plist-put (cdr acm-menu-frame) :visible t))
 
     ;; Not adjust menu frame size if not necessary,
     ;; such as select candidate just change index,
@@ -317,23 +315,23 @@ See `popon-create' for more information."
                (`(,cursor-x . ,cursor-y)
                 (prog1 (acm-terminal-get-popup-position)
                   (when lines
-                    (plist-put (cdr acm-frame) :lines lines)
-                    (plist-put (cdr acm-frame) :width (length (car lines))))))
-               (`(,menu-w . ,menu-h) (popon-size acm-frame))
+                    (plist-put (cdr acm-menu-frame) :lines lines)
+                    (plist-put (cdr acm-menu-frame) :width (length (car lines))))))
+               (`(,menu-w . ,menu-h) (popon-size acm-menu-frame))
                (bottom-free-h (- edge-bottom edge-top cursor-y)))
     (let ((x (if (> textarea-width (+ cursor-x menu-w))
                  cursor-x
                (- cursor-x (- (+ cursor-x menu-w) textarea-width) 1))))
-      (plist-put (cdr acm-frame) :x x))
+      (plist-put (cdr acm-menu-frame) :x x))
     (cond
      ;; top
      ((<= bottom-free-h menu-h)
-      (plist-put (cdr acm-frame) :direction 'top)
-      (plist-put (cdr acm-frame) :y (- cursor-y menu-h)))
+      (plist-put (cdr acm-menu-frame) :direction 'top)
+      (plist-put (cdr acm-menu-frame) :y (- cursor-y menu-h)))
      ;; bottom
      (t
-      (plist-put (cdr acm-frame) :direction 'bottom)
-      (plist-put (cdr acm-frame) :y (+ cursor-y 1))))))
+      (plist-put (cdr acm-menu-frame) :direction 'bottom)
+      (plist-put (cdr acm-menu-frame) :y (+ cursor-y 1))))))
 
 (defun acm-terminal-doc-get-page (lines start height)
   "Get doc page.
@@ -398,8 +396,8 @@ DOC-LINES       text lines of doc"
                                      (acm-terminal-line-number-display-width))))
                (textarea-height (- edge-bottom edge-top))
                (`(,cursor-x . ,cursor-y) (acm-terminal-get-popup-position))
-               (`(,menu-x . ,menu-y) (popon-position acm-frame))
-               (`(,menu-w . ,menu-h) (popon-size acm-frame))
+               (`(,menu-x . ,menu-y) (popon-position acm-menu-frame))
+               (`(,menu-w . ,menu-h) (popon-size acm-menu-frame))
                (menu-right (+ menu-x menu-w))
                (doc-w nil)
                (doc-h nil)
@@ -409,7 +407,7 @@ DOC-LINES       text lines of doc"
      ;; l:menu + r:document
      ((>= textarea-width (+ menu-right acm-terminal-doc-max-width))
       (setq doc-lines (acm-terminal-doc-render candidate-doc))
-      (if (eq 'bottom (plist-get (cdr acm-frame) :direction))
+      (if (eq 'bottom (plist-get (cdr acm-menu-frame) :direction))
           ;; right bottom
           (progn
             (setq doc-h (- textarea-height cursor-y))
@@ -471,7 +469,7 @@ DOC-LINES       text lines of doc"
                                         (- menu-y doc-h)
                                       ;; menu on bottom
                                       (- menu-y doc-h
-                                         (if (eq 'bottom (plist-get (cdr acm-frame) :direction))
+                                         (if (eq 'bottom (plist-get (cdr acm-menu-frame) :direction))
                                              (setq offset 1)
                                            0)))))
                              (if (< y 0)
@@ -484,7 +482,7 @@ DOC-LINES       text lines of doc"
                                                    menu-x
                                                  (- textarea-width doc-w)))
              (plist-put (cdr acm-doc-frame) :y (+ menu-y menu-h
-                                                  (if (eq 'top (plist-get (cdr acm-frame) :direction))
+                                                  (if (eq 'top (plist-get (cdr acm-menu-frame) :direction))
                                                       1
                                                     0)))
              (plist-put (cdr acm-doc-frame) :lines (seq-take doc-lines rect-height)))
@@ -585,8 +583,8 @@ DOC-LINES       text lines of doc"
     (acm-mode -1)
 
     ;; Hide menu frame.
-    (when acm-frame
-      (setq acm-frame (popon-kill acm-frame)))
+    (when acm-menu-frame
+      (setq acm-menu-frame (popon-kill acm-menu-frame)))
 
     ;; Hide doc frame.
     (acm-doc-hide)
@@ -612,8 +610,8 @@ DOC-LINES       text lines of doc"
          (candidates (acm-update-candidates))
          (menu-candidates (cl-subseq candidates 0 (min (length candidates) acm-menu-length)))
          (current-select-candidate-index (cl-position previous-select-candidate (mapcar 'acm-menu-index-info menu-candidates) :test 'equal))
-         (direction (when (popon-live-p acm-frame)
-                      (plist-get (cdr acm-frame) :direction)))
+         (direction (when (popon-live-p acm-menu-frame)
+                      (plist-get (cdr acm-menu-frame) :direction)))
          (bounds (acm-get-input-prefix-bound)))
     (cond
      ;; Hide completion menu if user type first candidate completely.
@@ -662,19 +660,19 @@ DOC-LINES       text lines of doc"
         (setq-local acm-menu-candidates menu-candidates)
 
         ;; Init colors.
-        (acm-init-colors)
+        (acm-frame-init-colors)
 
         ;; Record menu popup position and buffer.
-        (setq acm-frame-popup-point (or (car bounds) (point)))
+        (setq acm-menu-frame-popup-point (or (car bounds) (point)))
 
         ;; `posn-at-point' will failed in CI, add checker make sure CI can pass.
         ;; CI don't need popup completion menu.
-        (when (posn-at-point acm-frame-popup-point)
-          (setq acm-frame-popup-position (acm-frame-get-popup-position))
+        (when (posn-at-point acm-menu-frame-popup-point)
+          (setq acm-frame-popup-position (acm-frame-get-popup-position acm-menu-frame-popup-point))
 
           ;; Create menu frame if it not exists.
-          (acm-terminal-create-frame-if-not-exist acm-frame acm-buffer "acm frame")
-          (plist-put (cdr acm-frame) :direction direction)
+          (acm-terminal-create-frame-if-not-exist acm-menu-frame acm-buffer "acm frame")
+          (plist-put (cdr acm-menu-frame) :direction direction)
 
           ;; Render menu.
           (acm-menu-render menu-old-cache))
@@ -682,7 +680,7 @@ DOC-LINES       text lines of doc"
      (t
       (acm-hide)))))
 
-(advice-add 'acm-init-colors :override 'acm-terminal-init-colors)
+(advice-add 'acm-frame-init-colors :override 'acm-terminal-init-colors)
 (advice-add 'acm-hide :override #'acm-terminal-hide)
 (advice-add 'acm-update :override #'acm-terminal-update)
 (advice-add 'acm-doc-try-show :override #'acm-terminal-doc-try-show)

@@ -6,7 +6,7 @@ Patch for LSP bridge acm on Terminal.
 
 ## Requirements
 
-- [lsp-bridge](https://github.com/manateelazycat/lsp-bridge) 17d6d92(2022-12-04) or newer
+- [lsp-bridge](https://github.com/manateelazycat/lsp-bridge) 81cc2fc(2023-01-08) or newer
 - [popon](https://codeberg.org/akib/emacs-popon)
 
 ## Installation
