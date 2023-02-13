@@ -5,9 +5,9 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2022/07/07
 ;; Version: 0.1.0
-;; Last-Updated: 2023-01-09 18:32:13 +0800
+;; Last-Updated: 2023-02-13 21:24:41 +0800
 ;;           By: Gong Qijian
-;; Package-Requires: ((emacs "26.1") (acm "0.1") (popon "0.3"))
+;; Package-Requires: ((emacs "26.1"))
 ;; URL: https://github.com/twlz0ne/acm-terminal
 ;; Keywords: 
 
