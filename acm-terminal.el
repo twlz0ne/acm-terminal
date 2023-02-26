@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2022/07/07
 ;; Version: 0.1.0
-;; Last-Updated: 2023-02-13 21:24:41 +0800
+;; Last-Updated: 2023-02-26 12:14:35 +0800
 ;;           By: Gong Qijian
 ;; Package-Requires: ((emacs "26.1"))
 ;; URL: https://github.com/twlz0ne/acm-terminal
@@ -502,7 +502,7 @@ DOC-LINES       text lines of doc"
   (acm-cancel-timer acm-markdown-render-timer)
   (setq acm-markdown-render-doc nil))
 
-(defun acm-terminal-doc-try-show ()
+(defun acm-terminal-doc-try-show (&optional update-completion-item)
   (when acm-enable-doc
     (let* ((candidate (acm-menu-current-candidate))
            (backend (plist-get candidate :backend))
@@ -532,10 +532,12 @@ DOC-LINES       text lines of doc"
                          0.2 nil #'acm-terminal-doc-adjust-pos doc)))
               (acm-terminal-doc-adjust-pos doc)))
 
-        ;; Hide doc frame immediately if backend is not LSP.
-        ;; If backend is LSP, doc frame hide is control by `lsp-bridge-completion-item--update'.
-        (unless (string-equal backend "lsp")
-          (acm-doc-hide))))))
+        (pcase backend
+          ;; If backend is LSP, doc frame hide when `update-completion-item' is t.
+          ("lsp" (when update-completion-item
+                   (acm-doc-hide)))
+          ;; Hide doc frame immediately if backend is not LSP.
+          (_ (acm-doc-hide)))))))
 
 (defun acm-terminal-doc-scroll-up ()
   "Scroll text of doc upward."
