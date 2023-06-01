@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2022/07/07
 ;; Version: 0.1.0
-;; Last-Updated: 2023-02-26 12:14:35 +0800
+;; Last-Updated: 2023-06-01 21:21:41 +0800
 ;;           By: Gong Qijian
 ;; Package-Requires: ((emacs "26.1"))
 ;; URL: https://github.com/twlz0ne/acm-terminal
@@ -132,14 +132,16 @@ substring lenght, e.g.:
                 (truncate-string-to-width line width 0 ?\s))
               (split-string (buffer-string) "\n")))))
 
+(defun acm-terminal-default-background ()
+  (or (face-background 'acm-terminal-default-face)
+      (pcase (face-background 'default)
+        ("unspecified-bg" "white")
+        (`,color color))))
+
 (defun acm-terminal-init-colors (&optional force)
   (let* ((is-dark-mode (string-equal (acm-frame-get-theme-mode) "dark"))
          (blend-background (if is-dark-mode "#000000" "#AAAAAA"))
-         (default-background (or (face-background 'acm-terminal-default-face)
-                                 (pcase (face-background 'default)
-                                   ("unspecified-bg" "white")
-                                   (`,color color)))))
-
+         (default-background (acm-terminal-default-background)))
     ;; Make sure menu follow the theme of Emacs.
     (when (or force (equal (face-attribute 'acm-terminal-default-face :background) 'unspecified))
       (set-face-background 'acm-terminal-default-face (acm-frame-color-blend default-background blend-background (if is-dark-mode 0.8 0.9))))
@@ -257,6 +259,17 @@ See `popon-create' for more information."
 
         ;; Update item index.
         (setq item-index (1+ item-index))))))
+
+(defun acm-terminal-markdown-render-content (orig-fn)
+  (cl-letf* ((orig-face-attribute (symbol-function #'face-attribute))
+             ((symbol-function #'face-attribute)
+              (lambda (face attribute &optional frame inherit)
+                (if (and (popon-live-p frame)
+                         (eq face 'markdown-code-face)
+                         (eq attribute :background))
+                    (acm-terminal-default-background)
+                  (funcall orig-face-attribute face attribute nil inherit)))))
+    (funcall orig-fn)))
 
 (defun acm-terminal-doc-render (doc &optional width)
   "Render DOC string."
@@ -691,6 +704,7 @@ DOC-LINES       text lines of doc"
 (advice-add 'acm-doc-scroll-down :override #'acm-terminal-doc-scroll-down)
 (advice-add 'acm-menu-render :override #'acm-terminal-menu-render)
 (advice-add 'acm-menu-render-items :override #'acm-terminal-menu-render-items)
+(advice-add 'acm-markdown-render-content :around #'acm-terminal-markdown-render-content)
 
 (provide 'acm-terminal)
 
