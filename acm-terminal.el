@@ -198,7 +198,7 @@ See `popon-create' for more information."
          (annotation-not-exits (cl-every (lambda (item) (string-empty-p (plist-get item :annotation))) items)))
     (dolist (v items)
       (let* ((icon (cdr (assoc (downcase (plist-get v :icon)) acm-icon-alist)))
-             (candidate (plist-get v :display-label))
+             (candidate (plist-get v :displayLabel))
              (candidate-length (funcall acm-string-width-function candidate))
              (annotation (plist-get v :annotation))
              (annotation-text (if annotation annotation ""))
