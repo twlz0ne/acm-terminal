@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2022/07/07
 ;; Version: 0.1.0
-;; Last-Updated: 2023-09-05 20:47:01 +0800
+;; Last-Updated: 2023-11-20 15:38:57 +0800
 ;;           By: Gong Qijian
 ;; Package-Requires: ((emacs "26.1"))
 ;; URL: https://github.com/twlz0ne/acm-terminal
@@ -188,13 +188,26 @@ See `popon-create' for more information."
 
 (defun acm-terminal-max-length (return)
   "Advice to adjust the max lenght."
-  (min return
+  (min (+ return 2)
        (- (window-width)
           (+ (- (car (window-inside-edges)) (window-left-column))
              (acm-terminal-line-number-display-width)))))
 
 (defun acm-terminal-menu-render-items (items menu-index)
   (let* ((item-index 0)
+         ;; The max length is calcuated base on the format
+         ;; bellow (see `acm-menu-max-length'):
+         ;;
+         ;;   {label}\s{annotation}
+         ;;
+         ;; but in Terminal we render the items in a different way, so the
+         ;; calculation format should be:
+         ;;
+         ;;   {label}\s{annotation}\s
+         ;;
+         ;; without changing the format, then we should add 1 when using
+         ;; `acm-menu-max-length-cache'.
+         (max-length (1- acm-menu-max-length-cache))
          (annotation-not-exits (cl-every (lambda (item) (string-empty-p (plist-get item :annotation))) items)))
     (dolist (v items)
       (let* ((icon (cdr (assoc (downcase (plist-get v :icon)) acm-icon-alist)))
@@ -203,24 +216,12 @@ See `popon-create' for more information."
              (annotation (plist-get v :annotation))
              (annotation-text (if annotation annotation ""))
              (annotation-length (funcall acm-string-width-function annotation-text))
-             ;; The max length is calcuated base on the format
-             ;; bellow (see `acm-menu-max-length'):
-             ;;
-             ;;   {label}\s{annotation}
-             ;;
-             ;; but in Terminal we render the items in a different way, so the
-             ;; calculation format should be:
-             ;;
-             ;;   {label}\s{annotation}\s
-             ;;
-             ;; without changing the format, then we should add 1 when using
-             ;; `acm-menu-max-length-cache'.
-             (max-length (1- acm-menu-max-length-cache))
              (candidate-max-length (- max-length annotation-length 2))
              (padding-length (- max-length (+ candidate-length annotation-length) 2))
              (icon-text (if icon (acm-icon-build (nth 0 icon) (nth 1 icon) (nth 2 icon)) ""))
              (quick-access-key (nth item-index acm-quick-access-keys))
              candidate-line)
+
         ;; Render deprecated candidate.
         (when (plist-get v :deprecated)
           (add-face-text-property 0 (length candidate) 'acm-deprecated-face 'append candidate))
