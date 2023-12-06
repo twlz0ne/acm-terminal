@@ -5,7 +5,7 @@
 ;; Author: Gong Qijian <gongqijian@gmail.com>
 ;; Created: 2022/07/07
 ;; Version: 0.1.0
-;; Last-Updated: 2023-11-20 15:38:57 +0800
+;; Last-Updated: 2023-12-06 19:41:42 +0800
 ;;           By: Gong Qijian
 ;; Package-Requires: ((emacs "26.1"))
 ;; URL: https://github.com/twlz0ne/acm-terminal
@@ -700,17 +700,32 @@ DOC-LINES       text lines of doc"
      (t
       (acm-hide)))))
 
-(advice-add 'acm-frame-init-colors :override 'acm-terminal-init-colors)
-(advice-add 'acm-hide :override #'acm-terminal-hide)
-(advice-add 'acm-update :override #'acm-terminal-update)
-(advice-add 'acm-doc-try-show :override #'acm-terminal-doc-try-show)
-(advice-add 'acm-doc-hide :override #'acm-terminal-doc-hide)
-(advice-add 'acm-doc-scroll-up :override #'acm-terminal-doc-scroll-up)
-(advice-add 'acm-doc-scroll-down :override #'acm-terminal-doc-scroll-down)
-(advice-add 'acm-menu-max-length :filter-return #'acm-terminal-max-length)
-(advice-add 'acm-menu-render :override #'acm-terminal-menu-render)
-(advice-add 'acm-menu-render-items :override #'acm-terminal-menu-render-items)
-(advice-add 'acm-markdown-render-content :around #'acm-terminal-markdown-render-content)
+(defvar acm-terminal-advices
+  '((acm-frame-init-colors :override acm-terminal-init-colors)
+    (acm-hide :override acm-terminal-hide)
+    (acm-update :override acm-terminal-update)
+    (acm-doc-try-show :override acm-terminal-doc-try-show)
+    (acm-doc-hide :override acm-terminal-doc-hide)
+    (acm-doc-scroll-up :override acm-terminal-doc-scroll-up)
+    (acm-doc-scroll-down :override acm-terminal-doc-scroll-down)
+    (acm-menu-max-length :filter-return acm-terminal-max-length)
+    (acm-menu-render :override acm-terminal-menu-render)
+    (acm-menu-render-items :override acm-terminal-menu-render-items)
+    (acm-markdown-render-content :around acm-terminal-markdown-render-content))
+  "A list of (ORIG-FN HOW ADVICE-FN).")
+
+(defun acm-terminal-active ()
+  (mapc (pcase-lambda (`(,orig-fn ,how ,advice-fn))
+          (advice-add orig-fn how advice-fn))
+        acm-terminal-advices))
+
+(defun acm-terminal-deactive ()
+  (mapc (pcase-lambda (`( ,orig-fn ,_ ,advice-fn ))
+          (advice-remove orig-fn advice-fn))
+        acm-terminal-advices))
+
+(unless window-system
+  (acm-terminal-active))
 
 (provide 'acm-terminal)
 
